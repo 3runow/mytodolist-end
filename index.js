@@ -12,7 +12,7 @@ app.use((req, res, next) => {
   );
   res.header(
     "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept"
+    "Origin, X-Requested-With, Content-Type, Accept, id-token"
   );
   next();
 });
@@ -22,7 +22,7 @@ app.use(express.json());
 
 // Rota básica pra testar se está no ar
 app.get("/", (req, res) => {
-  res.send("API está no ar!");
+  res.send("API do Bruno tá no ar! AI CARAMBA.");
 });
 
 // Rotas principais
@@ -37,7 +37,7 @@ app.listen(PORT, () => {
 // Conexão com MongoDB
 const mongoURL = process.env.MONGODB_URI || process.argv[2];
 if (!mongoURL) {
-  console.error("Nenhuma URL do MongoDB foi fornecida!");
+  console.error("⚠️ Nenhuma URL do MongoDB foi fornecida!");
   process.exit(1);
 }
 
