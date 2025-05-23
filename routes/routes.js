@@ -3,7 +3,7 @@ const router = express.Router();
 const modeloTarefa = require("../models/tarefa");
 const userModel = require("../models/user");
 const jwt = require("jsonwebtoken");
-const bcrypt = require('bcrypt');
+const { randomBytes, createHash } = require('crypto');
 
 // Criar nova tarefa
 router.post("/post", async (req, res) => {
@@ -93,24 +93,27 @@ async function verificaAdmin(req, res, next) {
   }
 }
 
+// Validação de senha com hash e salt
+function validPassword(senha, hashBD, saltBD) {
+  const hashCalculado = createHash('sha256').update(senha + saltBD).digest('hex');
+  return hashCalculado === hashBD;
+}
+
 // Login (autenticação com MongoDB)
 router.post("/login", async (req, res) => {
   try {
     const data = await userModel.findOne({ nome: req.body.nome });
-    if (data != null) {
-      const isPasswordValid = await bcrypt.compare(req.body.senha, data.senha);
-      if (isPasswordValid) {
-        const token = jwt.sign(
-          {
-            id: data._id,
-            nome: data.nome,
-            admin: data.admin === true,
-          },
-          "segredo",
-          { expiresIn: 300 }
-        );
-        return res.json({ token: token });
-      }
+    if (data != null && validPassword(req.body.senha, data.hash, data.salt)) {
+      const token = jwt.sign(
+        {
+          id: data._id,
+          nome: data.nome,
+          admin: data.admin === true,
+        },
+        "segredo",
+        { expiresIn: 300 } // token expira em 5 minutos
+      );
+      return res.json({ token: token });
     }
     res.status(401).json({ message: "Login inválido!" });
   } catch (error) {
@@ -120,15 +123,16 @@ router.post("/login", async (req, res) => {
 
 // CRUD de usuários (admin only)
 
-// CREATE
+// CREATE com hash e salt
 router.post("/users", verificaJWT, verificaAdmin, async (req, res) => {
   try {
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(req.body.senha, saltRounds);
+    const salt = randomBytes(16).toString('hex');
+    const hash = createHash('sha256').update(req.body.senha + salt).digest('hex');
 
     const user = new userModel({
       nome: req.body.nome,
-      senha: hashedPassword,
+      hash: hash,
+      salt: salt,
       admin: req.body.admin || false
     });
 
@@ -152,14 +156,7 @@ router.get("/users", verificaJWT, verificaAdmin, async (req, res) => {
 // UPDATE
 router.patch("/users/:id", verificaJWT, verificaAdmin, async (req, res) => {
   try {
-    const updateData = { ...req.body };
-
-    if (req.body.senha) {
-      const saltRounds = 10;
-      updateData.senha = await bcrypt.hash(req.body.senha, saltRounds);
-    }
-
-    const user = await userModel.findByIdAndUpdate(req.params.id, updateData, {
+    const user = await userModel.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
     });
     res.json(user);
